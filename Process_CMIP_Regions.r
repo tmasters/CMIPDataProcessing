@@ -59,7 +59,7 @@ combineTS<-function(ts1,ts2)
 #		model - name of the model (e.g. "GFDL-CM3")
 #		variable - name of the variable to average 
 #		area - square bounds given in degrees of area to average over (top,bottom,left,right)
-#		dirPath - top level path we should begin searching within.  Assumes typical CMIP5 format of experiment/table/variable/model/run
+#		dirPath - top level path we should begin searching within for NC.  Assumes typical CMIP5 format of experiment/table/variable/model/run
 # returns - list of time series for relevant experiment / model / variable for each of the runs
 getSingleModelVariableResult<-function(experiment, model, variable, area=c(90,-90,0,360), dirPath=".")
 {
@@ -114,9 +114,47 @@ getSingleModelVariableResult<-function(experiment, model, variable, area=c(90,-9
 				#print(varTs)
 				close.ncdf(file.nc)
 			}
-			index<-length(results)+1
-			results[[index]]<-varTs
+			#figure out the run this is associated with
+			if (!is.null(varTs))
+			{
+				runReg=regexpr("r[0-9]+i[0-9]+p[0-9]+",fileList[[1]])
+				match<-regmatches(fileList[[1]],runReg)[1]
+				run_data<-match
+				results[[run_data]]<-varTs
+			}
 		}
 	}
 	results
+}
+
+# bulkProcessModels - Process the experiment / variable / area combination for all models specified in the modelFile
+#		experiment - experiment this is for (e.g. "historical" or "historicalGHG") 
+#		variable - name of the variable to average 
+#		area - square bounds given in degrees of area to average over (top,bottom,left,right)
+#		modelFile - path to text file where the first row of the table contains the model names to process
+#		dirPath - top level path we should begin searching within for NC files.  Assumes typical CMIP5 format of experiment/table/variable/model/run
+#		outPath - output directory for the text files 
+#		
+# returns - nothing
+
+bulkProcessAllModels<-function(experiment, variable, area=c(90,-90,0,360), modelFile='models.txt', dirPath='.', outPath='.')
+{
+	models<-read.table(modelFile)[[1]]
+	for (i in 1:length(models))
+	{
+		#get the results
+		result<-getSingleModelVariableResult(experiment, models[i], variable, area, dirPath=dirPath)
+		#output each of the runs
+		for (run in 1:length(result))
+		{
+			df<-ts.union(time(result[[run]]), result[[run]])
+			colnames(df)[1]<-'year'
+			colnames(df)[2]<-variable
+			fileName<-paste(outPath,"/",sep="")
+			fileName<-paste(fileName, paste(experiment,variable,models[i],names(result)[run],area[1],area[2],area[3],area[4],sep='_'), sep='')
+			fileName<-paste(fileName, ".txt",sep='')
+			print(fileName)
+			write.table(df, fileName)
+		}
+	}
 }
