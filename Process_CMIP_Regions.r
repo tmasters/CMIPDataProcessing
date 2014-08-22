@@ -104,10 +104,23 @@ getSingleModelVariableResult<-function(experiment, model, variable, area=c(90,-9
 				weighting<-getWeighting(lat_bnds, lon_bnds, area)
 				monthsPerFile<-length(file.nc$dim$time$vals)
 				monthlyData<-numeric(monthsPerFile)
-				for (mon in 1:monthsPerFile)
+				#reduce number of disk reads by grabbing in batches
+				#(limit to 10 years max to avoid memory issues)
+				batches<-ceiling(monthsPerFile/120)
+				for (batch in 1:batches)
 				{
-					data<-get.var.ncdf(file.nc, variable, start=c(1,1,mon), count=c(lonNum,latNum,1))
-					monthlyData[mon]<-sum(weighting*data, na.rm=TRUE)
+					startMonth<-(batch-1)*120+1
+					countMonths<-min(120, monthsPerFile-startMonth+1)
+					fileData<-get.var.ncdf(file.nc, variable, start=c(1,1,startMonth), count=c(lonNum,latNum,countMonths))
+					for (mon in 1:countMonths)
+					{
+						if (countMonths > 1) {
+							data<-fileData[,,mon]
+						} else {
+							data<-fileData
+						}
+						monthlyData[startMonth+(mon-1)]<-sum(weighting*data, na.rm=TRUE)
+					}
 				}
 				#print(ts(monthlyData,start=c(fileStartYr,fileStartMo),freq=12))
 				varTs<-combineTS(varTs,ts(monthlyData,start=c(fileStartYr,fileStartMo),freq=12))
