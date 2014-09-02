@@ -149,7 +149,6 @@ getSingleModelVariableResult<-function(experiment, model, variable, area=c(90,-9
 #		outPath - output directory for the text files 
 #		
 # returns - nothing
-
 bulkProcessAllModels<-function(experiment, variable, area=c(90,-90,0,360), modelFile='models.txt', dirPath='.', outPath='.')
 {
 	models<-read.table(modelFile)[[1]]
@@ -171,3 +170,39 @@ bulkProcessAllModels<-function(experiment, variable, area=c(90,-90,0,360), model
 		}
 	}
 }
+
+# readAllProcessedFiles - After creating the text files, this allows the quick retrieval
+#				of the process runs from those text files into memory
+#		directory - directory containing already processed txt files (should all be same variable / experiment) 
+#					could be "outpath" from above function
+#		models - list of models to read in
+#		area - region that has been pre-processed that we wish to read in
+#		
+# returns - a list where each item is itself a list of each model's runs
+
+#function to read all global files in a directory and separate them by model and run
+readAllProcessedFiles<-function(directory, models, area=c(90,-90,0,360))
+{
+	rcpFiles<-list.files(path=directory, full.names=TRUE)
+	model_rcp<-list()
+	for (i in 1:length(models))
+	{
+		model<-as.character(models[i])
+		model_rcp[[as.character(models[i])]]<-list()
+		for (j in 1:length(rcpFiles))
+		{
+			if (length(grep(paste(model,'_',sep=''), rcpFiles[j])) > 0 && 
+				length(grep(paste(area[1],area[2],area[3],area[4],sep='_'), rcpFiles[j])) > 0)
+			{
+				runReg=regexpr("r[0-9]+i[0-9]+p[0-9]+",rcpFiles[j])
+				match<-regmatches(rcpFiles[j],runReg)[1]
+				run<-match
+				data<-read.table(rcpFiles[j])
+				model_rcp[[model]][[run]]<-ts(data[[2]],start=data[[1]][1],freq=12)
+			}
+		}
+		print(paste(model, length(model_rcp[[model]])))
+	}	
+	model_rcp	
+}
+
